@@ -1,5 +1,6 @@
 package com.github.corke123.userservice.user;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -26,9 +27,10 @@ class UserController {
     }
 
     @PostMapping
-    ResponseEntity<UserResponse> createUser(@RequestBody UserRequest userRequest) {
+    ResponseEntity<UserResponse> createUser(@RequestBody UserRequest userRequest, HttpServletRequest request) {
+        String ipAddress = request.getRemoteAddr();
         var user = new User(null, userRequest.firstName(), userRequest.lastName(), userRequest.email());
-        var savedUser = userService.createUser(user);
+        var savedUser = userService.createUser(user, ipAddress);
         return ResponseEntity.created(buildLocation(savedUser.id())).build();
     }
 

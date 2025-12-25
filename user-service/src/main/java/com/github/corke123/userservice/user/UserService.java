@@ -1,5 +1,6 @@
 package com.github.corke123.userservice.user;
 
+import com.github.corke123.userservice.client.LimiterClient;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -8,12 +9,15 @@ import java.util.List;
 class UserService {
 
     private final UserRepository userRepository;
+    private final LimiterClient limiterClient;
 
-    UserService(UserRepository userRepository) {
+    UserService(UserRepository userRepository, LimiterClient limiterClient) {
         this.userRepository = userRepository;
+        this.limiterClient = limiterClient;
     }
 
-    User createUser(User user) {
+    User createUser(User user, String ipAddress) {
+        limiterClient.checkIpLimit(ipAddress);
         return userRepository.save(user);
     }
 
