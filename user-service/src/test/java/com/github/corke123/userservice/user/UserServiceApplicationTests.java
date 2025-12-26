@@ -1,5 +1,6 @@
 package com.github.corke123.userservice.user;
 
+import com.github.corke123.shared.event.UserCreatedEvent;
 import com.github.corke123.userservice.user.UserController.UserRequest;
 import com.github.corke123.userservice.user.UserController.UserResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,29 +10,41 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
+import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.context.WebApplicationContext;
 import org.wiremock.spring.ConfigureWireMock;
 import org.wiremock.spring.EnableWireMock;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestDatabase
 @EnableWireMock(
         @ConfigureWireMock(name = "limiter-service", baseUrlProperties = "user-service.limiter-service.url")
 )
+@EmbeddedKafka(
+        partitions = 1,
+        topics = {"${user-service.kafka.topics.user-created.name}"}
+)
+@Import({KafkaTestSupportConfig.class})
 class UserServiceApplicationTests {
 
     private RestTestClient restTestClient;
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private KafkaTestSupportConfig.UserCreatedTestReceiver receiver;
 
     @BeforeEach
     void setUp(WebApplicationContext context) {
@@ -64,6 +77,14 @@ class UserServiceApplicationTests {
                 assertThat(user.lastName()).isEqualTo(userRequest.lastName());
                 assertThat(user.email()).isEqualTo(userRequest.email());
             });
+
+            await().atMost(5, TimeUnit.SECONDS)
+                    .untilAsserted(() -> {
+                        UserCreatedEvent receivedEvent = receiver.getReceivedEvent();
+                        assertThat(receivedEvent).isNotNull();
+                        assertThat(receivedEvent).isEqualTo(
+                                new UserCreatedEvent(savedUser.id(), savedUser.firstName(), savedUser.lastName(), savedUser.email()));
+                    });
         }
 
         @Test
