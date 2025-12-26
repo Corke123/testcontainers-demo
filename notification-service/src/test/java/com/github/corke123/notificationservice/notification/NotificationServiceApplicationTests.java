@@ -1,22 +1,15 @@
 package com.github.corke123.notificationservice.notification;
 
 import com.github.corke123.shared.event.UserCreatedEvent;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.kafka.KafkaContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
 import java.util.List;
@@ -29,16 +22,8 @@ import static org.awaitility.Awaitility.await;
         "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
         "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JacksonJsonSerializer"
 })
-//@Import(TestcontainersConfig.class)
-@Testcontainers
+@Import(TestcontainersConfig.class)
 class NotificationServiceApplicationTests {
-
-    @Container
-    static KafkaContainer kafkaContainer = new KafkaContainer(DockerImageName.parse("apache/kafka:4.1.1"));
-
-    @Container
-    static GenericContainer<?> mailpit = new GenericContainer<>(DockerImageName.parse("axllent/mailpit:v1.28.0"))
-            .withExposedPorts(1025, 8025);
 
     @Value("${notification-service.kafka.topics.user-created}")
     private String topicName;
@@ -46,21 +31,8 @@ class NotificationServiceApplicationTests {
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
 
-    private static RestClient mailpitClient;
-
-    @BeforeAll
-    static void setup() {
-        mailpitClient = RestClient.builder()
-                .baseUrl("http://%s:%s".formatted(mailpit.getHost(), mailpit.getMappedPort(8025)))
-                .build();
-    }
-
-    @DynamicPropertySource
-    static void setProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.kafka.bootstrap-servers", kafkaContainer::getBootstrapServers);
-        registry.add("spring.mail.host", mailpit::getHost);
-        registry.add("spring.mail.port", () -> mailpit.getMappedPort(1025));
-    }
+    @Autowired
+    private RestClient mailpitClient;
 
     @Test
     @DisplayName("GIVEN UserCreatedEvent is received, WHEN it is processed, THEN welcome email is sent")
