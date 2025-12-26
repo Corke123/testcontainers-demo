@@ -13,6 +13,10 @@
     <name>limiter-service</name>
     <description>limiter-service</description>
 
+    <properties>
+        <testcontainers.version>2.0.3</testcontainers.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -34,9 +38,15 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.github.codemonstur</groupId>
-            <artifactId>embedded-redis</artifactId>
-            <version>1.4.3</version>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.redis</groupId>
+            <artifactId>testcontainers-redis</artifactId>
+            <version>2.2.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

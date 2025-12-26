@@ -1,5 +1,6 @@
 package com.github.corke123.limiterservice.limiter;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -8,22 +9,35 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.time.Duration;
 
+import static com.github.corke123.limiterservice.limiter.TestcontainersConfig.REDIS_CONTAINER;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "spring.data.redis.port=6370")
-@Import(EmbeddedRedisConfiguration.class)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(TestcontainersConfig.class)
 class LimiterServiceApplicationTests {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
 
     private RestTestClient restTestClient;
+
+    @BeforeAll
+    static void startRedis() {
+        REDIS_CONTAINER.start();
+    }
+
+    @DynamicPropertySource
+    static void redisProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", REDIS_CONTAINER::getHost);
+        registry.add("spring.data.redis.port", () -> REDIS_CONTAINER.getMappedPort(6379));
+    }
 
     @BeforeEach
     void setUp(WebApplicationContext context) {
