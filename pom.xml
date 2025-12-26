@@ -20,6 +20,7 @@
     <modules>
         <module>user-service</module>
         <module>limiter-service</module>
+        <module>shared</module>
     </modules>
 
     <properties>
