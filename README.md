@@ -132,6 +132,22 @@ cd notification-service
 ./mvnw spring-boot:run
 ```
 
+### Publishing events to Kafka
+
+```bash
+docker exec -it 62d392b598c8 /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9093 --topic user-created-topic --property parse.headers=true --property headers.delimiter=@
+```
+
+```plaintext
+__TypeId__:com.github.corke123.shared.event.UserCreatedEvent@{"id": "550e8400-e29b-41d4-a716-446655440000", "firstName": "Marko", "lastName": "Markovic", "email": "marko@mail.com"}
+```
+
+### Consuming events from Kafka
+
+```bash
+docker exec -it 8319f2d9f814 /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9093 --topic user-created-topic --from-beginning
+```
+
 ## Testing
 
 The project includes integration tests using Testcontainers, which automatically spin up real instances of PostgreSQL,

@@ -13,6 +13,8 @@ import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfig {
 
@@ -45,7 +47,9 @@ public class TestcontainersConfig {
 
     @Bean
     WireMock wireMock(GenericContainer<?> wiremockContainer) {
-        return new WireMock(wiremockContainer.getHost(), wiremockContainer.getMappedPort(8080));
+        WireMock wireMock = new WireMock(wiremockContainer.getHost(), wiremockContainer.getMappedPort(8080));
+        wireMock.register(post(urlMatching("/limits/.*")).willReturn(ok()));
+        return wireMock;
     }
 
     @Bean
