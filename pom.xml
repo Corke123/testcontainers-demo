@@ -22,6 +22,7 @@
         <module>limiter-service</module>
         <module>notification-service</module>
         <module>shared</module>
+        <module>testcontainers-mailpit</module>
     </modules>
 
     <properties>

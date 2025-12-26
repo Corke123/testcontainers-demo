@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.service.connection.ConnectionDetailsFactory=\
+  com.github.corke123.testcontainersmailpit.MailpitContainerConnectionDetailsFactory
