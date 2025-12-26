@@ -7,19 +7,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.kafka.KafkaContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
-import static com.github.corke123.notificationservice.notification.TestcontainersConfig.kafkaContainer;
-import static com.github.corke123.notificationservice.notification.TestcontainersConfig.mailpit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
@@ -27,8 +29,16 @@ import static org.awaitility.Awaitility.await;
         "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
         "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JacksonJsonSerializer"
 })
-@Import(TestcontainersConfig.class)
+//@Import(TestcontainersConfig.class)
+@Testcontainers
 class NotificationServiceApplicationTests {
+
+    @Container
+    static KafkaContainer kafkaContainer = new KafkaContainer(DockerImageName.parse("apache/kafka:4.1.1"));
+
+    @Container
+    static GenericContainer<?> mailpit = new GenericContainer<>(DockerImageName.parse("axllent/mailpit:v1.28.0"))
+            .withExposedPorts(1025, 8025);
 
     @Value("${notification-service.kafka.topics.user-created}")
     private String topicName;
@@ -40,9 +50,6 @@ class NotificationServiceApplicationTests {
 
     @BeforeAll
     static void setup() {
-        kafkaContainer.start();
-        mailpit.start();
-
         mailpitClient = RestClient.builder()
                 .baseUrl("http://%s:%s".formatted(mailpit.getHost(), mailpit.getMappedPort(8025)))
                 .build();

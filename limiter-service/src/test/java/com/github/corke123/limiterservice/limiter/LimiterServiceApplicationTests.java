@@ -1,37 +1,37 @@
 package com.github.corke123.limiterservice.limiter;
 
-import org.junit.jupiter.api.BeforeAll;
+import com.redis.testcontainers.RedisContainer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.context.WebApplicationContext;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
 
-import static com.github.corke123.limiterservice.limiter.TestcontainersConfig.redisContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfig.class)
+//@Import(TestcontainersConfig.class)
+@Testcontainers
 class LimiterServiceApplicationTests {
+
+    @Container
+    static RedisContainer redisContainer = new RedisContainer(DockerImageName.parse("redis:8.4.0-alpine")).withExposedPorts(6379);
 
     @Autowired
     private StringRedisTemplate redisTemplate;
 
     private RestTestClient restTestClient;
-
-    @BeforeAll
-    static void startRedis() {
-        redisContainer.start();
-    }
 
     @DynamicPropertySource
     static void redisProperties(DynamicPropertyRegistry registry) {
