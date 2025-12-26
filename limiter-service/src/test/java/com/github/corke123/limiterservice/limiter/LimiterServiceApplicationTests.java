@@ -16,7 +16,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.time.Duration;
 
-import static com.github.corke123.limiterservice.limiter.TestcontainersConfig.REDIS_CONTAINER;
+import static com.github.corke123.limiterservice.limiter.TestcontainersConfig.redisContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -30,13 +30,13 @@ class LimiterServiceApplicationTests {
 
     @BeforeAll
     static void startRedis() {
-        REDIS_CONTAINER.start();
+        redisContainer.start();
     }
 
     @DynamicPropertySource
     static void redisProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.data.redis.host", REDIS_CONTAINER::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS_CONTAINER.getMappedPort(6379));
+        registry.add("spring.data.redis.host", redisContainer::getHost);
+        registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379));
     }
 
     @BeforeEach

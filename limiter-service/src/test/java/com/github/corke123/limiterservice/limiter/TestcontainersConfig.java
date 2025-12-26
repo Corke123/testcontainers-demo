@@ -7,6 +7,6 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfig {
 
-    static RedisContainer REDIS_CONTAINER = new RedisContainer(DockerImageName.parse("redis:8.4.0-alpine")).withExposedPorts(6379);
+    static RedisContainer redisContainer = new RedisContainer(DockerImageName.parse("redis:8.4.0-alpine")).withExposedPorts(6379);
 
 }
