@@ -13,16 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.kafka.KafkaContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -32,20 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import({KafkaTestSupportConfig.class, /*TestcontainersConfig.class*/})
-@Testcontainers
+@Import({KafkaTestSupportConfig.class, TestcontainersConfig.class})
 class UserServiceApplicationTests {
 
-    @Container
-    static KafkaContainer kafkaContainer = new KafkaContainer(DockerImageName.parse("apache/kafka:4.1.1"));
-
-    @Container
-    static PostgreSQLContainer<?> postgresContainer = new PostgreSQLContainer<>("postgres:18.1-alpine3.23");
-
-    @Container
-    static GenericContainer<?> wiremockContainer = new GenericContainer<>("wiremock/wiremock:3.13.2-1-alpine")
-            .withExposedPorts(8080);
-
+    @Autowired
     private RestTestClient restTestClient;
 
     @Autowired
@@ -54,22 +35,11 @@ class UserServiceApplicationTests {
     @Autowired
     private KafkaTestSupportConfig.UserCreatedTestReceiver receiver;
 
+    @Autowired
     private WireMock wireMockClient;
 
-    @DynamicPropertySource
-    static void redisProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.kafka.bootstrap-servers", kafkaContainer::getBootstrapServers);
-        registry.add("spring.datasource.url", postgresContainer::getJdbcUrl);
-        registry.add("spring.datasource.username", postgresContainer::getUsername);
-        registry.add("spring.datasource.password", postgresContainer::getPassword);
-        registry.add("user-service.limiter-service.url",
-                () -> "http://%s:%s".formatted(wiremockContainer.getHost(), wiremockContainer.getMappedPort(8080)));
-    }
-
     @BeforeEach
-    void setUp(WebApplicationContext context) {
-        restTestClient = RestTestClient.bindToApplicationContext(context).build();
-        wireMockClient = new WireMock(wiremockContainer.getHost(), wiremockContainer.getMappedPort(8080));
+    void setUp() {
         userRepository.deleteAll();
     }
 
