@@ -3,39 +3,28 @@ package com.github.corke123.userservice.user;
 import com.github.corke123.shared.event.UserCreatedEvent;
 import com.github.corke123.userservice.user.UserController.UserRequest;
 import com.github.corke123.userservice.user.UserController.UserResponse;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
-import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.context.WebApplicationContext;
-import org.wiremock.spring.ConfigureWireMock;
-import org.wiremock.spring.EnableWireMock;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.github.corke123.userservice.user.TestcontainersConfig.*;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureTestDatabase
-@EnableWireMock(
-        @ConfigureWireMock(name = "limiter-service", baseUrlProperties = "user-service.limiter-service.url")
-)
-@EmbeddedKafka(
-        partitions = 1,
-        topics = {"${user-service.kafka.topics.user-created.name}"}
-)
-@Import({KafkaTestSupportConfig.class})
+@Import({KafkaTestSupportConfig.class, TestcontainersConfig.class})
 class UserServiceApplicationTests {
 
     private RestTestClient restTestClient;
@@ -46,9 +35,29 @@ class UserServiceApplicationTests {
     @Autowired
     private KafkaTestSupportConfig.UserCreatedTestReceiver receiver;
 
+    private WireMock wireMockClient;
+
+    @BeforeAll
+    static void startContainers() {
+        kafkaContainer.start();
+        postgresContainer.start();
+        wiremockContainer.start();
+    }
+
+    @DynamicPropertySource
+    static void redisProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.kafka.bootstrap-servers", kafkaContainer::getBootstrapServers);
+        registry.add("spring.datasource.url", postgresContainer::getJdbcUrl);
+        registry.add("spring.datasource.username", postgresContainer::getUsername);
+        registry.add("spring.datasource.password", postgresContainer::getPassword);
+        registry.add("user-service.limiter-service.url",
+                () -> "http://%s:%s".formatted(wiremockContainer.getHost(), wiremockContainer.getMappedPort(8080)));
+    }
+
     @BeforeEach
     void setUp(WebApplicationContext context) {
         restTestClient = RestTestClient.bindToApplicationContext(context).build();
+        wireMockClient = new WireMock(wiremockContainer.getHost(), wiremockContainer.getMappedPort(8080));
         userRepository.deleteAll();
     }
 
@@ -60,7 +69,7 @@ class UserServiceApplicationTests {
         void shouldCreateUser() {
             UserRequest userRequest = new UserRequest("John", "Doe", "john.doe@mail.com");
 
-            stubFor(post(urlMatching("/limits/.*")).willReturn(ok()));
+            wireMockClient.register(post(urlMatching("/limits/.*")).willReturn(ok()));
 
             restTestClient.post()
                     .uri("/users")
@@ -92,7 +101,7 @@ class UserServiceApplicationTests {
         void shouldBlockUserCreationWhenRateLimitExceeded() {
             UserRequest userRequest = new UserRequest("Blocked", "User", "blocked@mail.com");
 
-            stubFor(post(urlMatching("/limits/.*")).willReturn(aResponse().withStatus(429)));
+            wireMockClient.register(post(urlMatching("/limits/.*")).willReturn(aResponse().withStatus(429)));
 
             restTestClient.post()
                     .uri("/users")
@@ -112,7 +121,7 @@ class UserServiceApplicationTests {
             UserRequest duplicateRequest = new UserRequest("Second", "User", "duplicate@mail.com");
 
             userRepository.save(existingUser);
-            stubFor(post(urlMatching("/limits/.*")).willReturn(ok()));
+            wireMockClient.register(post(urlMatching("/limits/.*")).willReturn(ok()));
 
 
             restTestClient.post()
