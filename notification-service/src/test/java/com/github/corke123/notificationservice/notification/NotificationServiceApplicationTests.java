@@ -1,33 +1,33 @@
 package com.github.corke123.notificationservice.notification;
 
 import com.github.corke123.shared.event.UserCreatedEvent;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.test.context.EmbeddedKafka;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
+import static com.github.corke123.notificationservice.notification.TestcontainersConfig.kafkaContainer;
+import static com.github.corke123.notificationservice.notification.TestcontainersConfig.mailpit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.Mockito.verify;
 
 @SpringBootTest(properties = {
         "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
         "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JacksonJsonSerializer"
 })
-@EmbeddedKafka(
-        partitions = 1,
-        topics = {"${notification-service.kafka.topics.user-created}"}
-)
+@Import(TestcontainersConfig.class)
 class NotificationServiceApplicationTests {
 
     @Value("${notification-service.kafka.topics.user-created}")
@@ -36,10 +36,24 @@ class NotificationServiceApplicationTests {
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
 
-    @MockitoBean
-    private JavaMailSender mailSender;
+    private static RestClient mailpitClient;
 
-    private final ArgumentCaptor<SimpleMailMessage> messageCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    @BeforeAll
+    static void setup() {
+        kafkaContainer.start();
+        mailpit.start();
+
+        mailpitClient = RestClient.builder()
+                .baseUrl("http://%s:%s".formatted(mailpit.getHost(), mailpit.getMappedPort(8025)))
+                .build();
+    }
+
+    @DynamicPropertySource
+    static void setProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.kafka.bootstrap-servers", kafkaContainer::getBootstrapServers);
+        registry.add("spring.mail.host", mailpit::getHost);
+        registry.add("spring.mail.port", () -> mailpit.getMappedPort(1025));
+    }
 
     @Test
     @DisplayName("GIVEN UserCreatedEvent is received, WHEN it is processed, THEN welcome email is sent")
@@ -51,21 +65,34 @@ class NotificationServiceApplicationTests {
         await().atMost(Duration.ofSeconds(5))
                 .pollInterval(Duration.ofMillis(100))
                 .untilAsserted(() -> {
-                    verify(mailSender).send(messageCaptor.capture());
-                    assertThat(messageCaptor.getValue())
-                            .extracting(SimpleMailMessage::getTo, SimpleMailMessage::getSubject, SimpleMailMessage::getText)
-                            .containsExactly(
-                                    new String[]{"john.doe@example.com"},
-                                    "Welcome to Our Platform!",
-                                    """
-                                            Hello John Doe,
-                                            
-                                            Welcome to our platform! We're excited to have you on board.
-                                            
-                                            Best regards,
-                                            The Team"""
-                            );
+                    MailpitResponse mailpitResponse = mailpitClient.get()
+                            .uri("/api/v1/messages")
+                            .accept(MediaType.APPLICATION_JSON)
+                            .retrieve()
+                            .body(MailpitResponse.class);
+
+                    System.out.println("mailpitResponse = " + mailpitResponse);
+
+                    assertThat(mailpitResponse).isNotNull();
+                    assertThat(mailpitResponse.messages).hasSize(1);
+                    MailpitMessage receivedMessage = mailpitResponse.messages.getFirst();
+
+                    assertThat(receivedMessage.To()).hasSize(1);
+                    Recipient recipient = receivedMessage.To().getFirst();
+                    assertThat(recipient.Address()).isEqualTo("john.doe@example.com");
+
+                    assertThat(receivedMessage.Subject()).isEqualTo("Welcome to Our Platform!");
+                    assertThat(receivedMessage.Snippet()).isEqualTo("Hello John Doe, Welcome to our platform! We're excited to have you on board. Best regards, The Team");
                 });
+    }
+
+    record MailpitResponse(List<MailpitMessage> messages, int total) {
+    }
+
+    record MailpitMessage(String ID, String Subject, List<Recipient> To, String Snippet) {
+    }
+
+    record Recipient(String Name, String Address) {
     }
 
 }
